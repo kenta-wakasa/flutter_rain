@@ -13,9 +13,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Rain',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(),
       home: Rain(),
     );
   }
@@ -29,10 +27,10 @@ class Rain extends StatelessWidget {
       body: Stack(
         children: [
           ...List.generate(
-            1000,
+            500, // 雨粒の数
             (_) => Particle(
               key: UniqueKey(),
-              screenWidth: MediaQuery.of(context).size.width * 5,
+              rainArea: 5000,
             ),
           )
         ],
@@ -41,41 +39,9 @@ class Rain extends StatelessWidget {
   }
 }
 
-class Wind {
-  Wind._();
-  static Wind instance = Wind._();
-  final random = Random();
-  double xVelocity = 0;
-  int yVelocity = 0;
-
-  int time = 0;
-  bool play = true;
-
-  void changeWindow() {
-    xVelocity = xVelocity + (random.nextDouble() - .5) / 10;
-    yVelocity = random.nextInt(5);
-  }
-
-  Future<void> mainLoop() async {
-    int count = 0;
-    time = random.nextInt(500);
-
-    while (play) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      count++;
-      changeWindow();
-      if (count > time) {
-        count = 0;
-        time = random.nextInt(500);
-        xVelocity = xVelocity + (random.nextDouble() - .5) * 2;
-      }
-    }
-  }
-}
-
 class Particle extends StatefulWidget {
-  Particle({required Key key, required this.screenWidth}) : super(key: key);
-  final double screenWidth;
+  Particle({required Key key, required this.rainArea}) : super(key: key);
+  final double rainArea;
 
   @override
   _ParticleState createState() => _ParticleState();
@@ -86,11 +52,12 @@ class _ParticleState extends State<Particle> with SingleTickerProviderStateMixin
     vsync: this,
     duration: const Duration(seconds: 1),
   );
+  final random = Random();
   late double initXPos;
   late double initYPos;
   late double strokeWidth;
   late double length;
-  late double disappearanceTime;
+  late double resetTime;
 
   var count = 0;
   @override
@@ -99,7 +66,7 @@ class _ParticleState extends State<Particle> with SingleTickerProviderStateMixin
     reset();
     animationController.addListener(() {
       count++;
-      if (count > disappearanceTime) {
+      if (count > resetTime) {
         reset();
       }
     });
@@ -113,13 +80,12 @@ class _ParticleState extends State<Particle> with SingleTickerProviderStateMixin
   }
 
   void reset() {
-    final random = Random();
     count = 0;
-    initXPos = (random.nextDouble() * widget.screenWidth) - widget.screenWidth * (2 / 5);
+    initXPos = (random.nextDouble() * widget.rainArea) - (widget.rainArea / 2);
     initYPos = -random.nextDouble() * 1000;
     strokeWidth = random.nextDouble() / 4;
     length = random.nextDouble() * 280;
-    disappearanceTime = 10 + random.nextDouble() * 100;
+    resetTime = 10 + random.nextDouble() * 100;
   }
 
   @override
@@ -129,8 +95,8 @@ class _ParticleState extends State<Particle> with SingleTickerProviderStateMixin
       builder: (context, child) {
         return CustomPaint(
           painter: ParticlePainter(
-            xPos: initXPos + (count * Wind.instance.xVelocity * 80.0),
-            yPos: initYPos + (count * (Wind.instance.yVelocity + 80.0)),
+            xPos: initXPos + (count * (Wind.instance.xVelocity * (Wind.instance.yVelocity + 60.0))),
+            yPos: initYPos + (count * (Wind.instance.yVelocity + 60.0)),
             strokeWidth: strokeWidth,
             length: length,
             xVelocity: Wind.instance.xVelocity,
@@ -165,11 +131,47 @@ class ParticlePainter extends CustomPainter {
     paint.color = Colors.white;
     canvas.drawLine(
       Offset(xPos, yPos),
-      Offset(xPos + (xVelocity + fluctuation) * (40 + length), yPos + 40 + length),
+      Offset(
+        xPos + (40 + length) * (xVelocity + fluctuation),
+        yPos + (40 + length), // 40 は最小の長さ
+      ),
       paint,
     );
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+/// 風を定義しているクラス
+class Wind {
+  Wind._();
+  static Wind instance = Wind._();
+  final random = Random();
+  double xVelocity = 0;
+  int yVelocity = 0;
+
+  /// 風が吹くタイミングを決定する
+  int time = 0;
+
+  /// 風向きを変える
+  void changeWindow() {
+    xVelocity = xVelocity + (random.nextDouble() - .5) / 10;
+    yVelocity = random.nextInt(5);
+  }
+
+  Future<void> mainLoop() async {
+    int count = 0;
+    time = random.nextInt(500);
+    while (true) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      count++;
+      changeWindow();
+      if (count > time) {
+        count = 0;
+        time = random.nextInt(500);
+        xVelocity = xVelocity + (random.nextDouble() - .5);
+      }
+    }
+  }
 }
